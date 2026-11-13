@@ -213,10 +213,9 @@ Shield durability не заявляется: проверенное health по�
   это дополнительная совместимость, не замена требуемой проверки Lua 5.3.
 - python3 tools/package.py и --check: актуальный install.list, 162 Lua files.
 - Syntax OK: все 162 Lua files.
-- В этой итерации Python-код не менялся. Последняя Python-проверка: manifest/PKI/
-  satellite store — 8 passed; CnC non-socket storage — 4 passed. CnC localhost
-  integration запускался, но старт тестового сервера превысил timeout sandbox;
-  предыдущая сохранённая итерация проходила TCP tests.
+- В этой итерации Python-код не менялся. Полный запуск `python3 -m unittest
+  discover -s tools/tests -p '*_test.py' -v` дал 14 passed, включая реальный
+  localhost TCP и Lua↔Python crypto/CnC integration.
 - Lua 5.3 runtime в текущем окружении отсутствует; прежний .test-output/lua53.txt
   не является результатом этой итерации.
 - Попытка получить `liblua5.3-0` без системной установки не удалась из-за DNS
