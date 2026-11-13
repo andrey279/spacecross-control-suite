@@ -1,0 +1,10 @@
+{
+  "Core": {"paths": ["spacecross", "bin", "bootstrap.lua", "config.example.lua", "tools/check_syntax.lua", "tools/check_manifest.lua", "spacecross/defense/access.lua"], "requires": []},
+  "Autopilot": {"paths": ["spacecross/autopilot"], "requires": ["Core"]},
+  "Power": {"paths": ["spacecross/power"], "requires": ["Core"]},
+  "Entity": {"paths": ["spacecross/entity"], "requires": ["Core"]},
+  "Defense": {"paths": ["spacecross/defense"], "requires": ["Core", "Entity"]},
+  "Terminal": {"paths": ["spacecross/terminal", "bin/remote.lua", "config.client.example.lua"], "requires": ["Core"]},
+  "CnC": {"paths": ["spacecross/cnc"], "requires": ["Core"]},
+  "Tests": {"paths": ["run_tests.lua", "test_components.lua", "tests", "spacecross/testing", "spacecross/tests"], "requires": ["Core", "Autopilot", "Power", "Entity", "Defense", "Terminal", "CnC"]}
+}

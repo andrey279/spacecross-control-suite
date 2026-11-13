@@ -1,0 +1,38 @@
+name: Component manifest
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: manifest-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: sudo apt-get update && sudo apt-get install -y lua5.2
+      - run: python3 tools/package.py --check
+      - run: lua5.2 tools/check_syntax.lua
+      - run: lua5.2 run_tests.lua --no-color
+      - run: python3 tools/manifest.py --revision "$GITHUB_SHA" --out dist
+      - run: lua5.2 tools/check_manifest.lua dist/components.sc "$GITHUB_SHA"
+      - name: Publish exact-commit assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="spacecross-${GITHUB_SHA}"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release download "$release_tag" --pattern 'components.*' --dir dist/existing
+            cmp dist/components.sc dist/existing/components.sc
+            cmp dist/components.lua dist/existing/components.lua
+          else
+            gh release create "$release_tag" dist/components.sc dist/components.lua --target "$GITHUB_SHA" --title "SpaceCross ${GITHUB_SHA}" --notes "Component versions and file hashes generated from this commit." --latest=false
+          fi

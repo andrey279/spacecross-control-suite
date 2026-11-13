@@ -1,0 +1,2 @@
+# PC CnC server, PKI and independent crypto-vector generation. No Lua runtime dependency.
+cryptography>=46.0
