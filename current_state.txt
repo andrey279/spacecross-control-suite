@@ -37,7 +37,9 @@ Shield durability не заявляется: проверенное health по�
   внешнее deployment и реальный webhook не настроены.
 - Локальная шина: конверт, async OpenOS event, изоляция подписчиков.
 - Updater: latest main -> immutable SHA; syntax check; generations; active rename;
-  reboot; повтор после сбоя. Реальный GitHub repo не создан/не выбран.
+  reboot; повтор после сбоя. `origin` настроен на
+  `https://github.com/andrey279/spacecross-control-suite.git`; публикация ветки
+  ожидает доступного DNS/сети.
 - UI: target-owned models, fresh snapshots, no inactive model cache, static frame,
   multiGPU, проверка ника/экрана. Touch/scroll/стрелки переключают вкладки;
   активная вкладка видна даже при переполнении заголовка.
@@ -274,8 +276,9 @@ builder/computer adapters в Minecraft 1.7.10, затем выполнить и�
 satellite variants A+B, structure deployment, remote UI and certificates. До
 этого физические требования остаются непроверенными; протоколы не подменяются
 меньшим объёмом.
-Реальные адреса устройств, GitHub repo, сервер и Discord webhook не заданы;
-разработка модулей и тестирование со стабами от этого не заблокированы.
+Реальные адреса устройств, сервер и Discord webhook не заданы; GitHub repo
+выбран и привязан как `origin`, но push и release workflow требуют доступной
+сети. Разработка модулей и тестирование со стабами от этого не заблокированы.
 Официальный OpenSecurity не имеет RSA/ECC: реализован явно выбираемый OC Tier3
 provider; совместимость пользовательского форка не заявляется без его API.
 Подробности: docs/network.md, docs/rpc.md, docs/terminal.md, docs/cnc.md, docs/requirements.md,
