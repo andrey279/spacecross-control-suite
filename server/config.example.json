@@ -1,0 +1,15 @@
+{
+  "address": "cnc-server",
+  "bind": "127.0.0.1",
+  "port": 27016,
+  "privateKeyFile": "/etc/spacecross/cnc-private.der",
+  "certificateFile": "/etc/spacecross/cnc.cert",
+  "authorities": {"root": "/etc/spacecross/ca-public.der"},
+  "revoked": [],
+  "nodes": {"INTERNET-CARD-ADDRESS": "/etc/spacecross/ship.cert"},
+  "logPrivateKeyFile": "/etc/spacecross/log-private.der",
+  "database": "/var/lib/spacecross/state.sqlite3",
+  "maxConnections": 32,
+  "idleTimeout": 60,
+  "discordWebhook": null
+}

@@ -1,0 +1,282 @@
+SpaceCross — состояние разработки, 2026-11-13
+ТЗ: /home/sartok/Загрузки/spacecross.md (копия: docs/specification.md)
+Проект: /home/sartok/work/spacecross
+Текущий пункт плана: этап 5 — satellite/mine и structure deployment.
+RFTools Shield, OMT HAL/model/UI, satellite controller и structure deployment
+state machine реализованы и проверены на ПК; точные hardware/API bindings и все
+игровые проверки остаются открытыми.
+Эта итерация — ПРОГРЕСС: добавлен read-only OpenOS component inspector для
+сбора установленных component types, method names/direct-call flags и docs.
+Инспектор не вызывает hardware methods; его тесты покрывают фильтры, сортировку
+и отказ перечисления. Основание API — официальная документация OC.
+По upstream-исходнику Computronics подтверждены component type `radar`,
+`getPlayers(distance)` и поля `name`, optional `x/y/z`, `distance`; adapter теперь
+использует эти defaults и сохраняет explicit overrides для forks. Версия
+установленного modpack всё ещё требует проверки через inspector в игре.
+Тестами проверено смешивание OpenSecurity и настроенного Radar. В той же
+итерации обязательное подтверждение waypoint стало fail-closed, а отмена/таймаут
+навигации завершают deployment и отменяют переход. Добавлен
+configured component-proxy adapter для builder/provisioning компьютера структуры,
+включая receipt-based адрес. Предыдущая итерация добавила 10-секундный
+heartbeat через authenticated CnC RPC, node-scoped whitelist/alerts в SQLite,
+AES+HMAC local cache, component-proxy radar/WarpDrive/charge adapter, mine
+variants A+B, owner-only satellite model/UI, а также route →
+navigation → deployment → computer provisioning → confirmation pipeline и его UI.
+Shield durability не заявляется: проверенное health поле отсутствует.
+Цель целиком НЕ завершена; объём исходного ТЗ не сокращён.
+
+Этап 1 — реализована основа, проверена на ПК, ожидает игры:
+- Утилита автотестов: именованные all_tests, выбор компонентов/файлов,
+  отдельные success/failed/crashed, таблица, цвет только статуса.
+- HAL: реестр, отдельные instances, hotplug, pcall, массовые команды;
+  configurable address bindings для одинаковых RF component types;
+  неоднозначное сопоставление отклоняется, а не выбирается случайно.
+- Логгер: async RAM queue, encrypted HDD spool, ACK deletion, восстановление,
+  монотонные ID, защита от reentry. Upload/Discord реализованы в этапе 4;
+  внешнее deployment и реальный webhook не настроены.
+- Локальная шина: конверт, async OpenOS event, изоляция подписчиков.
+- Updater: latest main -> immutable SHA; syntax check; generations; active rename;
+  reboot; повтор после сбоя. Реальный GitHub repo не создан/не выбран.
+- UI: target-owned models, fresh snapshots, no inactive model cache, static frame,
+  multiGPU, проверка ника/экрана. Touch/scroll/стрелки переключают вкладки;
+  активная вкладка видна даже при переполнении заголовка.
+
+По archived RFTools `ShieldTEBase` source подтверждены upstream callbacks
+`isShieldActive`, `isShieldComposed`, `getRedstoneMode`, `setRedstoneMode`,
+`composeShield` и `decomposeShield`; source также не содержит health callback.
+Точный 1.7.10 jar modpack не доступен, поэтому это не заменяет игровую проверку.
+
+Этап 2 — реализован и проверен на ПК, ожидает игры:
+- Entity Watcher: OpenSecurity и Computronics Radar drivers с upstream defaults,
+  фоновые сканы, merge/dedup/TTL, ошибки; реальные component/result mappings
+  Computronics требуют проверки в целевой игре.
+- Access owners/admins, owner-only arm/disarm; policy OR intrusion/heartbeat.
+- Admin alerts; любой owner подавляет intrusion; неполный скан не доказывает
+  отсутствие владельца. Доверенный heartbeat связан с CnC agent (этап 4);
+  injected verifier остаётся альтернативой при выключенном CnC.
+- Minecraft redstone actuator через HAL, latch, retry failed channels.
+- Связаны с app, headless mode и UI models; реальное вооружение не включено.
+
+Этап 3 — реализован и проверен на ПК, ожидает игры:
+- autopilot/core_daemon.lua: независимый event.listen shipCoreCooldownDone,
+  OFFLINE для неактивных контроллеров, retry отказов, удаление сломанных ядер.
+  Обрабатывает остывание даже если оно началось до запуска текущей навигации.
+- autopilot/autopilot_core.lua: API точка/маршрут, max distance, ориентация,
+  проверка позиции после остывания, таймаут/удаление/нехватка энергии,
+  registerController/control для внешних модулей, события через шину 27102.
+- core/mutex.lua + runtime/processes.lua: /tmp/autopilot.lock с числовым ID,
+  проверка живого OpenOS процесса через process.info(thread), EBUSY, reclaim stale,
+  резервирование до I/O. Без модификации BIOS/OpenOS; это не POSIX PID.
+- Остановка/EBUSY автопилота не останавливают энергетику; daemon продолжает
+  деактивацию после остывания, даже если навигация остановлена через модель.
+  Уже начатый прыжок при отмене может завершиться; дальнейший маршрут прекращается.
+- power/controller.lua: телеметрия буферов, гистерезис генерации, приоритеты
+  нагрузок 1/2/3. Группа 2 защищается owner/неполной детекцией. Возвращение owner
+  восстанавливает её даже при отдельном отказе buffer telemetry.
+  Отказы источников/нагрузок изолированы, публикация телеметрии на 27103.
+- Драйверы: warpdrive_ship, enan_reactor, enderio_capacitor,
+  nc_reactor, thermal_generator (последние два RF + настроенный redstone через HAL).
+  В каждой binding конфигурации выбран конкретный адрес; onValue/offValue
+  должны соответствовать реальной проводке и режиму машины.
+- Модели и UI: autopilot/model.lua, ui/autopilot_tab.lua, ui/power_tab.lua.
+  Draft цели живёт на целевой модели; клиент каждый раз получает snapshot.
+- config.example.lua, README и target UI plugins обновлены; RFTools shields и
+  OMT turrets реализованы, но требуют подтверждения физических API в игре.
+
+Этап 4 — частично реализован, проверен на ПК; ожидает игры:
+- network/transport.lua, protocol.lua, adapters/modem.lua, adapters/tunnel.lua:
+  component-address routing, broadcast all/one/cards-list, addressed header,
+  logical ports over one modem physical port and tunnel port 0, hotplug.
+- Large string payload fragmentation, out-of-order assembly, per-card caches,
+  limits per-message/per-peer/global-memory, TTL, malformed/header source checks,
+  conflicting-fragment discard, independent hardware error handling.
+- network/discovery.lua: query/announce/bye, per-card host records, types/description,
+  receiving paths, expiry, bounded host cache and query response rate limiting.
+  Discovery always verified=false, does not grant identity/access/heartbeat trust.
+- bus/policy.lua and network_bridge.lua: inbound/outbound whitelist/blacklist
+  ports/msg_types/peers, per-card restriction/disable, explicit forwardLocal,
+  no reflection loops, accepted-interface dedup after policy (incl fragments).
+- app network lifecycle and read-only model, ui/network_tab.lua, configuration.
+  Default advertised type names come from installed models; networking is opt-in.
+- PC integration: independent application instances discover and exchange live
+  energy-controller events; stop/restart recovers; a broken network card leaves
+  local services running. Network ports opened by another program remain open.
+- Plain bus/discovery payloads remain unauthenticated data. Physical models are
+  not exposed through unauthenticated bus commands. Transport dedup is not replay security.
+- security/signing_card.lua: explicit OC Tier3 random/SHA256/ECDSA provider.
+  security/certificates.lua: pinned CA, subject nick, addresses, client/server usage,
+  model/action grants, revocation checked also after hello. No anonymous fallback.
+- rpc/protocol.lua + service.lua: one logical RPC port, signed hello/challenge/
+  invoke/result, request/recipient/port binding, fresh secure nonces, consume before
+  dispatch, response retry cache, bounded sessions/serialized memory and expiration.
+  Actor is cert.subject; args.player cannot impersonate another user. Model ACL
+  owners/admins is checked in addition to certificate grants.
+- Cache eviction/restart/replays do not repeat the old action. Signing failure
+  after dispatch does not leave a request executable again. Timeout/result failure
+  may mean unknown action outcome; the client does not silently create a new call.
+- tools/pki.py, sc_codec.py: offline keygen/issue/inspect, exclusive file creation,
+  0600 private DER keys. No CA deployment keys were installed or published.
+  Static application certificates, no calendar expiration; explicit serial revocation.
+- ui/remote_views.lua: authenticated _system.models catalog, selected endpoints,
+  multi-host status/power/entity views; separate target command tabs. Certificate
+  key+subject aliases deduplicated, inactive business snapshots never cached.
+  framework guards reentrant refresh and discards responses for a changed tab.
+- Network tab selects discovered model candidates; actual trust is provided by RPC,
+  not discovery. App/runtime integrate separate server/client identity providers.
+- RPC accepted actions and aggregated denial/fault statistics are passed to logger.
+  API/format/PKI/limits: docs/rpc.md. RPC payload itself is signed, not encrypted.
+- terminal/gpu.lua + text/cell/frame: software framebuffer без VRAM API, basic GPU
+  get/set/fill/copy, colors/palette/resolution/viewport/depth; UTF-8 и wide cells,
+  overlap/clipping/resize repair, строгий RLE SCT1 decoder. Квантизация low-depth
+  цветов не эмулируется побитно; в OpenOS ширину задаёт native unicode.wlen.
+- terminal/service.lua: owner-only (включая дополнительную проверку после model ACL),
+  server-generated actor/sources, session ownership, atomic input validation,
+  sequence ACK/dedup/conflict, queue/cells/session/frame/TTL limits, resize/close.
+  MaxCells резервируется по максимальному размеру каждой сессии, не стартовому.
+  Busy guard защищает от reentry при yield Data Card entropy/старта программы;
+  shutdown во время старта закрывает поздно полученный handle.
+- frame фиксирует один снимок, chunk передаёт до 4096 bytes с token; текущий вывод
+  не меняет pinned snapshot. Клиент получает целый кадр и валидирует до GPU calls;
+  обрыв и повреждение не дают частичный redraw. Полный redraw без delta cache.
+- terminal/openos_runner.lua + openos_scope.lua: штатные PTY/window/process/thread,
+  private input queue + data.pull, virtual component GPU/screen/keyboard proxy,
+  per-process pressed keys, копии vars/aliases. В root event queue только wake;
+  remote raw input и Ctrl+C/interrupted туда не публикуются. Root window restored,
+  headless setup через временный pure software bind. OpenOS/EEPROM files не меняются.
+  Используются internal OpenOS APIs: конкретная сборка ещё требует игры.
+  Modules с заранее cached physical GPU требуют адаптации к term.gpu/переданному
+  component proxy. Owner shell не является sandbox; имеет полный доступ к ОС.
+- terminal/client/input/renderer + bin/remote.lua + config.client.example.lua:
+  стандартный OpenOS client, actor/keyboard/screen association, pending input retry,
+  Ctrl+Alt+Q закрывает shell, restore исходных клеток/resolution/colors/depth/viewport.
+  Client запускает только transport/RPC, не корабельные службы. RPC подписывает,
+  но не шифрует экран/ввод. CLI закрывает сессию при неизвестном исходе input.
+- App/runtime terminal lifecycle; stop terminal закрывает shell, остальные
+  службы не затрагиваются. Документированные лимиты/протокол: docs/terminal.md.
+- cnc/channel.lua: outgoing Internet Card TCP, nonblocking finishConnect/read/write,
+  u32 length frames, partial I/O, pin certificate, budgets/backpressure/timeout,
+  EOF/reconnect/backoff. Один RPC instance/port 27016 для LAN и CnC, интернет-карта
+  сохраняет свой component address; peer — pinned external certificate address.
+  Discovery/bus через Internet не пересылаются; анонимного command API нет.
+- cnc/agent.lua: async begin/poll/take heartbeat и encrypted log upload, без network
+  wait внутри logger. Одноразовый частный proof обновляет defense heartbeat;
+  alive/discovery/повтор старого RPC result не могут обновить его. TCP connected
+  и подтверждённый trusted различаются. Отключение CnC не останавливает local services.
+- Server: server/crypto.py/rpc.py/main.py/store.py/control.py, config.example.json.
+  Взаимные certificate pins + CA/usage/address/grants/revocation, тот же signed
+  four-frame RPC. CnC identity обычно Owner с client+server usage; ship identity
+  имеет только _cnc.heartbeat/_logs.put. Команды проходят также целевой model ACL.
+  PC регистрирует подключение только после fresh heartbeat invoke.
+- Python decrypt совместим с Lua ECDH/HKDF/AES128CBC/HMAC envelope. SQLite WAL/FULL
+  transaction сохраняет sealed+plaintext+notification intent до signed receipt.
+  Agent требует exact ID и ciphertext digest, только затем logger удаляет файл.
+  Duplicate одинакового node/id/data даёт ACK, конфликт не перезаписывает запись.
+  Node namespaces разделены. Server DB 0600; plaintext/private log key только на ПК.
+- Durable Discord outbox: warning/error/critical, JSON bounded content/no mentions,
+  wait=true, no redirects, 429 retry_after/backoff и восстановление attempts.
+  Receipt не ждёт Discord. Внешний HTTP sender проверен mock, реальных сообщений нет.
+- server.control CLI enqueue/get: команды хранятся в SQLite, статусы queued/running/
+  done/failed/unknown; disconnect/timeout/restart после старта -> unknown без нового
+  автоматического действия. Локальный доступ к БД даёт права configured PC identity.
+- Logger сохраняет pending upload filename первым при изменении сортировки spool
+  (10 перед 2 не может заблокировать receipt). Timer workload bounded 8 records/
+  4 ACK files; явный flush/stop пытается обработать всю очередь.
+- RPC lifecycle усилен: stop во время crypto yield не создаёт поздний call/challenge/
+  dispatch; после crypto повторно проверяются quota/running и nonce collision.
+- Runtime/app/config/README/CI/documentation связаны. Полный протокол/настройка:
+  docs/cnc.md. RPC payload подписан, не зашифрован; log payload уже sealed отдельно.
+
+Этап 4 — ещё предстоит:
+- OMT verified 1.7.10 component type/method mapping; model/UI ready behind
+  configurable type/getter/mode mappings and must be gated by in-game inspection.
+- Игровая проверка RFTools shield/OMT, remote UI/certificates; remaining physical UI plugins.
+- Реальная Internet/Data Card, внешнее deployment и Discord webhook; код и PC
+  проверки не выданы за игровую интеграцию или фактическую доставку в Discord.
+
+Этап 5 — реализован кодом со строгими deployment adapters, проверен на ПК:
+- Satellite: heartbeat ровно 10 секунд, whitelist/status/alert через authenticated
+  CnC RPC, local cache с Data Card AES + HMAC и отдельным key file, strict non-empty
+  whitelist gate, autonomous scan option, configured component-proxy adapters,
+  jump и six-charge vector modes. Exact installed component APIs остаются game-gated.
+- Server CLI настраивает whitelist по node address и читает сохранённый status/alerts.
+- Structures: bounded route, autopilot sequencing, asynchronous deployment,
+  own-computer provisioning, explicit confirmation, receipt-based dynamic target
+  computer lookup, configurable component adapter, mandatory confirmation and
+  navigation timeout/cancel path, owner-only model.
+- Физические radar/WarpDrive/charges/builder/computer adapters ещё требуют
+  проверки в целевом Minecraft 1.7.10 modpack.
+
+Проверки этой итерации:
+- 176/176 Lua 5.2 через python3 tools/lua.py run_tests.lua --no-color.
+- 176/176 Lua 5.4 также прошли через `python3 tools/lua.py --library liblua5.4.so.0`;
+  это дополнительная совместимость, не замена требуемой проверки Lua 5.3.
+- python3 tools/package.py и --check: актуальный install.list, 162 Lua files.
+- Syntax OK: все 162 Lua files.
+- В этой итерации Python-код не менялся. Последняя Python-проверка: manifest/PKI/
+  satellite store — 8 passed; CnC non-socket storage — 4 passed. CnC localhost
+  integration запускался, но старт тестового сервера превысил timeout sandbox;
+  предыдущая сохранённая итерация проходила TCP tests.
+- Lua 5.3 runtime в текущем окружении отсутствует; прежний .test-output/lua53.txt
+  не является результатом этой итерации.
+- Попытка получить `liblua5.3-0` без системной установки не удалась из-за DNS
+  sandbox (`archive.ubuntu.com` недоступен).
+- В доступных файлах /home/sartok не обнаружены Computronics/OpenSecurity mod JARs;
+  точные bindings и игровой runtime поэтому не проверены.
+- Предыдущая итерация: 9 Python unittest, включая настоящие ECDSA signature/tamper/wrong-CA, PKI/0600/codec,
+  Lua envelope decrypt, SQLite rollback/ACK/dedup/outbox retry, RPC replay/restart/
+  revoke, HTTP sender/429, настоящий TCP, Lua↔Python real-crypto integration.
+- Lua envelope/signing adapter проверены независимыми Python ECDSA/hash/DER fixtures.
+  Тестовые private scalars в фикстурах являются публичным тестовым материалом.
+- Сценарии RPC: actor/grants/revocation, recipient, captured replay, server restart,
+  cache eviction, lost reply, signing failure after dispatch, shutdown, false result.
+- Три app instance: authenticated fresh snapshots двух power controllers,
+  no inactive fetching; Admin не может сделать configure через args.player=Owner.
+- UI: смена вкладки во время RPC wait не рисует старый результат.
+- 14 terminal tests: Unicode/palette/wide copy/resize, 160x50 RLE и malformed
+  frames, atomic renderer/restore, per-process keys/private Ctrl+C (оба порядка),
+  two-window adapter mocks, failed PTY restoration, owner/input dedup/conflict,
+  TTL/limits/revocation, pinned frame, large RPC frame paging, lost input ACK retry,
+  yielding entropy/start shutdown, aborted frame no redraw, app lifecycle и Admin denial.
+- В этой итерации добавлены 6 тестов RFTools shield driver/config, app model ACL,
+  свежих snapshots и UI маршрутизации команд на нужный удалённый host.
+- 7 Lua tests в предыдущей итерации: CnC heartbeat/logs/Owner command одним каналом, offline spool/
+  timeout/reconnect, partial frames/pin/size/connect timeout, one-use proof/digest;
+  pending filename starvation, bounded logger tick; RPC shutdown during crypto.
+- Lua↔Python integration исполняет настоящее app/channel/agent/logger/RPC/model;
+  только hardware/time/crypto callbacks проходят через ctypes bridge. Реальные
+  ECDSA/AES, TCP 127.0.0.1, SQLite commit, две удалённые log receipts и ровно одна
+  Owner configure command с ложным args.player=Admin успешно проверены.
+  Native Data Card совместимость всё ещё требует игры; её envelope проверен
+  отдельными независимыми vectors. ПК HTTP sender mock не является real Discord.
+- Python localhost socket tests потребовали sandbox escalation (EPERM на socket),
+  после разрешения прогнаны успешно. Prefix unittest tools/tests сохранён.
+- Все текущие unit-тесты исполняются локально; покрытие строк не измерено.
+- CI workflow обновлён (Lua 5.2/5.3 + Python PKI), удалённо не запускался.
+- Внешние OpenOS/Minecraft интеграционные тесты не выполнялись.
+  Их конкретный список: docs/ingame_checks.md; они не выданы за пройденные.
+
+Криптография: официальный OpenSecurity 1.7.10 не имеет RSA/ECC.
+Пользователю ранее задан опциональный вопрос о форке/OC Data Card Tier3;
+ответа в доступном контексте нет. Сделан явно выбираемый адаптер OC Tier3:
+ECDH/HKDF/AES128CBC/HMACSHA256, независимые публичные тест-векторы Python.
+По умолчанию crypto отключена; без неё логгер использует RAM, без plaintext HDD.
+
+Источники: docs/api_sources.md. Матрица требований: docs/requirements.md.
+WDShipController tree main 404, GlassesMagicEye web fetch failed,
+Pastebin web недоступен. Их код не выдаётся за изученный.
+WarpDrive MC1.7 использован по commit 8c00788a1cd8005afd73128dbaba8a893d500471.
+NuclearCraft 1.7.10: ba4e3cc1d6b162a632391496c96de5d42fb5f812.
+OpenComputers RF адаптеры проверены по source master-MC1.7.10.
+Вспомогательные исходники ещё лежат в /tmp/spacecross-*.java и *.scala.
+
+Следующее действие: подключить и проверить реальные OMT/RFTools/radar/WarpDrive/
+builder/computer adapters в Minecraft 1.7.10, затем выполнить игровые проверки
+satellite variants A+B, structure deployment, remote UI and certificates. До
+этого физические требования остаются непроверенными; протоколы не подменяются
+меньшим объёмом.
+Реальные адреса устройств, GitHub repo, сервер и Discord webhook не заданы;
+разработка модулей и тестирование со стабами от этого не заблокированы.
+Официальный OpenSecurity не имеет RSA/ECC: реализован явно выбираемый OC Tier3
+provider; совместимость пользовательского форка не заявляется без его API.
+Подробности: docs/network.md, docs/rpc.md, docs/terminal.md, docs/cnc.md, docs/requirements.md,
+docs/ingame_checks.md.
