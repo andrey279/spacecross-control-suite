@@ -7,7 +7,8 @@ state machine реализованы и проверены на ПК; точны
 игровые проверки остаются открытыми.
 Эта итерация — ПРОГРЕСС: добавлен read-only OpenOS component inspector для
 сбора установленных component types, method names/direct-call flags и docs.
-Инспектор не вызывает hardware methods; его тесты покрывают фильтры, сортировку
+Инспектор запускается из `bin/inspect_components.lua` с корректным project
+`package.path`; он не вызывает hardware methods. Его тесты покрывают фильтры, сортировку
 и отказ перечисления. Основание API — официальная документация OC.
 По upstream-исходнику Computronics подтверждены component type `radar`,
 `getPlayers(distance)` и поля `name`, optional `x/y/z`, `distance`; adapter теперь
